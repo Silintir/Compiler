@@ -1,5 +1,5 @@
 all: flex bison
-	g++ -std=c++11 calculator.tab.c lex.yy.c operators.cpp -lfl -o calculator
+	clang++ -std=c++11 -Wno-deprecated-register calculator.tab.c lex.yy.c operators.cpp -lfl -o calculator
 
 flex: 
 	flex calculator.l
