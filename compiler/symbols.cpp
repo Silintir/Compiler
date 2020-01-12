@@ -6,13 +6,14 @@
 #include "ast.hpp"
 #include "symbols.hpp"
 
-
+extern int errors;
 extern void yyerror(const char *msg);
 extern int yynerrs, yylineno;
 
 
 void error(std::string msg, int64_t loc) {
     std::cerr << "Error: near line " << loc << ": " << msg << std::endl;
+    errors++;
 }
 
 bool Symbols::declare(ast::Identifier *identifier) {
@@ -92,11 +93,12 @@ bool Symbols::is_initialized(ast::Identifier *identifier) {
     return table[identifier->name].is_initialized;
 }
 
-void Symbols::set_initialized(ast::Identifier *identifier) {
+bool Symbols::set_initialized(ast::Identifier *identifier) {
     if(table.find(identifier->name) == table.end()) {
-        return;
+        return false;
     } else {
         table[identifier->name].is_initialized = true;
+        return true;
     }
 }
 

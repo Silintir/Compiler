@@ -6,18 +6,19 @@
 #include "symbols.hpp"
 
 extern int yyparse();
-
+extern int errors;
 
 ast::Node *root;
 std::vector<int64_t> memory;
 Symbols symbols;
 CodeGen generator;
 
+
 int main() {
     //yydebug = YYDEBUG;
     int syntaxInvalid = yyparse();
-    if (syntaxInvalid) {
-        std::cerr << "Error compiling file: " << std::endl;
+    if (syntaxInvalid || errors > 0) {
+        std::cerr << "Error compiling file: " << errors << "syntax errors found" << std::endl;
         return 1;
     } else {
         // cerr << Color::green << "No syntax errors" << Color::def << endl;

@@ -8,7 +8,7 @@
 #include <iostream>
 #include "ast.hpp"
 
-
+void error(std::string msg, int64_t loc);
 
 class Symbol {
     public:
@@ -30,10 +30,10 @@ class Symbol {
 
 class Symbols {
     private:
-        int64_t offset = 0;
         int64_t for_offset = 0;
         std::unordered_map<std::string, Symbol> table;
     public:
+        int64_t offset = 0;
         Symbol get_symbol(std::string);
         bool declare(ast::Identifier *identifier);
         bool declare_tmp(std::string name);
@@ -41,7 +41,7 @@ class Symbols {
         bool undeclare(std::string name);
         bool undeclare_iter(std::string name);
         bool is_initialized(ast::Identifier *identifier);
-        void set_initialized(ast::Identifier *identifier);
+        bool set_initialized(ast::Identifier *identifier);
         void alloc_for_control(int64_t for_count);
         bool is_iterator(ast::Identifier *identifier);
         void set_iterator(ast::Identifier *identifier);

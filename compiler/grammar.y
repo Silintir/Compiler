@@ -12,7 +12,10 @@
     int64_t line = 1;
     extern int yylex();
 
+    int errors = 0;
+
     void yyerror(std::string msg) {
+        errors++;
         std::cerr << "[" << line-1 << "] " << "ERROR: " << msg << std::endl;
     }
 %}

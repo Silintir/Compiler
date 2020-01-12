@@ -15,8 +15,8 @@ extern std::vector<int64_t> memory;
 namespace ast {
     std::vector<Instruction*> generate_number(int64_t number, int64_t *label);
     
-    void insert_back(std::vector<Instruction*>& target, std::vector<Instruction*> stuff);
-    void insert_back(std::vector<Instruction*>& target, const std::vector<Instruction*> stuff);
+    void insert_back(std::vector<Instruction*>& target, std::vector<Instruction*>& stuff);
+    void insert_back(std::vector<Instruction*>& target, const std::vector<Instruction*>& stuff);
 
     bool check_init(Identifier *identifier);
     bool check_init(Value *value);
@@ -128,9 +128,16 @@ namespace ast {
     }
 
     std::vector<Instruction*> Read::gen_ir(int64_t *cur_label) {
-        std::cout << "Read" << std::endl;
-        std::vector<Instruction*> a;
-        return a;
+        std::vector<Instruction*> output;
+        std::cout << *cur_label << std::endl;
+        if (!symbols.set_initialized(identifier)) {
+            error(identifier->name+" not defined in line: ", line);
+            return output;
+        } 
+        insert_back(output, identifier->gen_ir(cur_label));
+        Instruction::GET(output,cur_label);
+        Instruction::STORE(output, symbols.get_symbol(identifier->name).offset_id, cur_label);
+        return output;
     }
 
     std::vector<Instruction*> Write::gen_ir(int64_t *cur_label) {
@@ -227,6 +234,14 @@ namespace ast {
         std::cout << "VarArray" << std::endl;
         std::vector<Instruction*> a;
         return a;
+    }
+
+    void insert_back(std::vector<Instruction*>& target, std::vector<Instruction*>& stuff) {
+        target.insert(target.end(), stuff.begin(), stuff.end());
+    }
+
+    void insert_back(std::vector<Instruction*>& target, const std::vector<Instruction*>& stuff) {
+        target.insert(target.end(), stuff.begin(), stuff.end());
     }
 }
 
