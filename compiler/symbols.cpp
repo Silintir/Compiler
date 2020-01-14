@@ -26,8 +26,9 @@ bool Symbols::declare(ast::Identifier *identifier) {
         if (id_type == typeid(ast::Var)) {
             var = Symbol(identifier->name, identifier->line, offset);
         } else if (id_type == typeid(ast::ConstArray)){
-                var = Symbol(identifier->name, identifier->line, offset,
-                (((ast::ConstArray*)identifier)->index_e - ((ast::ConstArray*)identifier)->index_b)+1);
+            var = Symbol(identifier->name, identifier->line, (((ast::ConstArray*)identifier)->index_e - ((ast::ConstArray*)identifier)->index_b)+2, offset,
+            ((ast::ConstArray*)identifier)->index_e, ((ast::ConstArray*)identifier)->index_b);
+            
         }
         offset += var.size;
         table[identifier->name] = var;

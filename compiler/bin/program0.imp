@@ -1,0 +1,7 @@
+DECLARE
+       a(1:100), b
+BEGIN
+	READ b;
+	READ a(b);	
+	WRITE a(b);
+END

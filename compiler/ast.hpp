@@ -27,6 +27,9 @@ namespace ast {
 
     class Identifier : public Node {
         public:
+            std::string name = "";
+            bool array = false;
+            bool iter = false;  
             enum Type {N,A,I};
             Identifier(std::string name, Type type, int64_t line)
              : name(name), Node(line) {
@@ -42,9 +45,7 @@ namespace ast {
                         iter = false;
                 }  
             }
-            std::string name = "";
-            bool array = false;
-            bool iter = false;  
+           
     };
 
     class Declarations : public Node {
@@ -279,9 +280,9 @@ namespace ast {
     class ConstArray : public Identifier {
         public:
             int64_t index_b, index_e;
-           
+            int64_t idx;
             ConstArray(std::string name, int64_t index, int64_t line)
-            : Identifier(name, A, line), index_b(index) {}
+            : Identifier(name, A, line), idx(index) {}
             ConstArray(std::string name, int64_t index_b, int64_t index_e, int64_t line)
             : Identifier(name, A, line), index_b(index_b), index_e(index_e){}
             

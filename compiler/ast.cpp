@@ -2,10 +2,12 @@
 #include <algorithm>
 #include <iostream>
 #include <sstream>
+#include <typeinfo>
 #include "ast.hpp"
 #include "symbols.hpp"
 #include "code_gen.hpp"
 #include "asm.hpp"
+
 
 
 extern Symbols symbols;
@@ -22,11 +24,25 @@ namespace ast {
     bool check_init(Value *value);
 
     std::vector<Instruction*> load_value(Value *value, int64_t *label) {
-        if (value->is_const()) {
-            return value->gen_ir(label);
+        std::vector<Instruction*> out;
+         if (value->is_const()) {
+             return value->gen_ir(label);
+
+        } else if(symbols.get_symbol(value->identifier->name).is_array){
+            if (typeid(*value->identifier) == typeid(ast::ConstArray)) {
+                int64_t off = symbols.get_symbol(value->identifier->name).offset_id; 
+                auto idx = (((ast::ConstArray*)value->identifier)->idx+1 - symbols.get_symbol(value->identifier->name).idx_b);
+                Instruction::LOAD(out,off+idx, label); 
+            } else {
+                Instruction::LOAD(out, symbols.get_symbol(value->identifier->name).offset_id, label);
+                Instruction::ADD(out, symbols.get_symbol(((ast::VarArray*)value->identifier)->index->name).offset_id, label);
+                Instruction::LOADI(out, 0, label);
+            }
+        } else {
+            out = value->gen_ir(label);
+            Instruction::LOAD(out, symbols.get_symbol(value->identifier->name).offset_id, label);
         }
-        auto out = value->gen_ir(label);
-        Instruction::LOAD(out, symbols.get_symbol(value->identifier->name).offset_id, label);
+        
         return out;
     }
 
@@ -39,17 +55,18 @@ namespace ast {
     }
 
     std::vector <Instruction*> Program::gen_ir(int64_t *cur_label) {
+        std::vector<Instruction*> out;
         if (declarations) {
-        declarations->gen_ir(cur_label);
+            out = declarations->gen_ir(cur_label);
         }
-        std::vector<Instruction*> out = code->gen_ir(cur_label);
+        insert_back(out, code->gen_ir(cur_label));
         Instruction::HALT(out, cur_label);
         return out;
     }
 
     std::vector <Instruction*> Declarations::gen_ir(int64_t *cur_label) {
         symbols.declare_tmp("_TMP");
-
+        std::vector<Instruction*> out;
         std::vector<Identifier*> vars;
         std::vector<Identifier*> iters;
         std::vector<Identifier*> arrays;
@@ -75,8 +92,12 @@ namespace ast {
                 err_redeclaration("DECL", identifier);
             }
             symbols.set_array(identifier);
+            // W zerowym miejscu arraya znajduje sie jego offset
+            //std::cout << symbols.get_symbol(identifier->name).offset_id << std::endl;
+            insert_back(out, generate_number(symbols.get_symbol(identifier->name).offset_id, cur_label));
+            Instruction::STORE(out, symbols.get_symbol(identifier->name).offset_id, cur_label);
         }
-        return std::vector<Instruction*>();
+        return out;
     }
 
     void Declarations::declare(Identifier *identifier){
@@ -121,8 +142,27 @@ namespace ast {
             generator.report(os, line);
             return output;
         }
-        insert_back(output, expression->gen_ir(cur_label));
-        Instruction::STORE(output, symbols.get_symbol(identifier->name).offset_id, cur_label);
+        if(symbols.get_symbol(identifier->name).is_array){
+            if (typeid(*identifier) == typeid(ast::ConstArray)) {
+                output = identifier->gen_ir(cur_label);
+                insert_back(output, expression->gen_ir(cur_label));
+                int64_t off = symbols.get_symbol(identifier->name).offset_id;
+                auto idx = (((ast::ConstArray*)identifier)->idx+1 - symbols.get_symbol(identifier->name).idx_b); 
+                Instruction::STORE(output,off+idx, cur_label);
+            } else {
+                Instruction::LOAD(output, symbols.get_symbol(identifier->name).offset_id, cur_label);
+                Instruction::ADD(output, symbols.get_symbol(((ast::VarArray*)identifier)->index->name).offset_id, cur_label);
+                Instruction::STORE(output, symbols.offset, cur_label);
+                int64_t temp = symbols.offset;
+                symbols.offset++;
+                insert_back(output, expression->gen_ir(cur_label));
+                Instruction::STOREI(output, temp, cur_label);
+            }
+        } else {
+            insert_back(output, expression->gen_ir(cur_label));
+            Instruction::STORE(output, symbols.get_symbol(identifier->name).offset_id, cur_label);
+        }
+        
         return output;
     }
 
@@ -167,9 +207,29 @@ namespace ast {
             error(identifier->name+" not defined in line: ", line);
             return output;
         } 
-        insert_back(output, identifier->gen_ir(cur_label));
-        Instruction::GET(output,cur_label);
-        Instruction::STORE(output, symbols.get_symbol(identifier->name).offset_id, cur_label);
+        if(symbols.get_symbol(identifier->name).is_array){
+            if (typeid(*identifier) == typeid(ast::ConstArray)) {
+                insert_back(output, identifier->gen_ir(cur_label));
+                Instruction::GET(output,cur_label);
+                int64_t off = symbols.get_symbol(identifier->name).offset_id; 
+                auto idx = (((ast::ConstArray*)identifier)->idx+1 - symbols.get_symbol(identifier->name).idx_b);
+                Instruction::STORE(output,off+idx, cur_label);
+            } else {
+                Instruction::LOAD(output, symbols.get_symbol(identifier->name).offset_id, cur_label);
+                Instruction::ADD(output, symbols.get_symbol(((ast::VarArray*)identifier)->index->name).offset_id, cur_label);
+                Instruction::STORE(output, symbols.offset, cur_label);
+                int64_t temp = symbols.offset;
+                symbols.offset++;
+                Instruction::GET(output,cur_label);
+                Instruction::STOREI(output, temp, cur_label);
+            }
+        } else {
+            insert_back(output, identifier->gen_ir(cur_label));
+            Instruction::GET(output,cur_label);
+            Instruction::STORE(output, symbols.get_symbol(identifier->name).offset_id, cur_label);
+        }
+
+       
         return output;
     }
     // DONE
@@ -286,33 +346,85 @@ namespace ast {
     }
 
     std::vector<Instruction*> NEQ::gen_ir(int64_t *cur_label) {
-        std::cout << "NEQ" << std::endl;
-        std::vector<Instruction*> a;
-        return a;
+        std::vector<Instruction*> out;
+        if (! (check_init(left) && check_init(right))) {
+            return out;
+        }
+        auto temp = Minus(left,right,line).gen_ir(cur_label);
+        out.insert(out.end(), temp.begin(), temp.end());
+        Instruction::JZERO(out,(*cur_label)+4,cur_label);
+        Instruction::SUB(out,0,cur_label);
+        Instruction::INC(out, cur_label);
+        Instruction::JUMP(out, (*cur_label)+2, cur_label);
+        Instruction::SUB(out,0,cur_label);
+
+        return out;
     }
 
     std::vector<Instruction*> LE::gen_ir(int64_t *cur_label) {
-        std::cout << "LE" << std::endl;
-        std::vector<Instruction*> a;
-        return a;
+        std::vector<Instruction*> out;
+        if (! (check_init(left) && check_init(right))) {
+            return out;
+        }
+        auto temp = Minus(left,right,line).gen_ir(cur_label);
+        out.insert(out.end(), temp.begin(), temp.end());
+        Instruction::JPOS(out,(*cur_label)+5,cur_label);
+        Instruction::JZERO(out,(*cur_label)+4,cur_label);
+        Instruction::SUB(out,0, cur_label);
+        Instruction::INC(out, cur_label);
+        Instruction::JUMP(out, (*cur_label)+2, cur_label);
+        Instruction::SUB(out,0, cur_label);
+
+        return out;
     }
 
     std::vector<Instruction*> GE::gen_ir(int64_t *cur_label) {
-        std::cout << "GE" << std::endl;
-        std::vector<Instruction*> a;
-        return a;
+       std::vector<Instruction*> out;
+        if (! (check_init(left) && check_init(right))) {
+            return out;
+        }
+        auto temp = Minus(left,right,line).gen_ir(cur_label);
+        out.insert(out.end(), temp.begin(), temp.end());
+        Instruction::JNEG(out,(*cur_label)+5,cur_label);
+        Instruction::JZERO(out,(*cur_label)+4,cur_label);
+        Instruction::SUB(out,0, cur_label);
+        Instruction::INC(out, cur_label);
+        Instruction::JUMP(out, (*cur_label)+2, cur_label);
+        Instruction::SUB(out,0,cur_label);
+
+        return out;
     }
 
     std::vector<Instruction*> LEQ::gen_ir(int64_t *cur_label) {
-        std::cout << "LEQ" << std::endl;
-        std::vector<Instruction*> a;
-        return a;
+        std::vector<Instruction*> out;
+        if (! (check_init(left) && check_init(right))) {
+            return out;
+        }
+        auto temp = Minus(left,right,line).gen_ir(cur_label);
+        out.insert(out.end(), temp.begin(), temp.end());
+        Instruction::JNEG(out,(*cur_label)+4,cur_label);
+        Instruction::SUB(out,0, cur_label);
+        Instruction::INC(out, cur_label);
+        Instruction::JUMP(out, (*cur_label)+2, cur_label);
+        Instruction::SUB(out,0,cur_label);
+
+        return out;
     }
 
     std::vector<Instruction*> GEQ::gen_ir(int64_t *cur_label) {
-        std::cout << "GEQ" << std::endl;
-        std::vector<Instruction*> a;
-        return a;
+        std::vector<Instruction*> out;
+        if (! (check_init(left) && check_init(right))) {
+            return out;
+        }
+        auto temp = Minus(left,right,line).gen_ir(cur_label);
+        out.insert(out.end(), temp.begin(), temp.end());
+        Instruction::JNEG(out,(*cur_label)+4,cur_label);
+        Instruction::SUB(out,0, cur_label);
+        Instruction::INC(out, cur_label);
+        Instruction::JUMP(out, (*cur_label)+2, cur_label);
+        Instruction::SUB(out,0,cur_label);
+
+        return out;
     }
     // WTF
     std::vector<Instruction*> Var::gen_ir(int64_t *cur_label) {
@@ -333,15 +445,48 @@ namespace ast {
     }
 
     std::vector<Instruction*> ConstArray::gen_ir(int64_t *cur_label) {
-        std::cout << "ConstArray" << std::endl;
-        std::vector<Instruction*> a;
-        return a;
+        Symbol arr = symbols.get_symbol(name);
+        if (arr.line == Symbol::undef) {
+            std::ostringstream os;
+            os << "Undeclared variable " << name << ".";
+            generator.report(os, line);
+            return std::vector<Instruction*>();
+        }
+        if (!arr.is_array) {
+            std::ostringstream os;
+            os << "Attempt to use a simple variable " << name << " as an array";
+            generator.report(os, line);
+            return std::vector<Instruction*>();
+        }
+        if (idx <= arr.idx_b || idx >= arr.idx_a) {
+            std::cout << index_e << "  " << index_b << std::endl;
+            std::ostringstream os;
+            os << "Attempt to access array " << name
+                << " at index " << idx
+                << "(size: " << arr.size << ").";
+            generator.report(os, line);
+            return std::vector<Instruction*>();
+        }
+
+        return std::vector<Instruction*>();
     }
 
     std::vector<Instruction*> VarArray::gen_ir(int64_t *cur_label) {
-        std::cout << "VarArray" << std::endl;
-        std::vector<Instruction*> a;
-        return a;
+        Symbol arr = symbols.get_symbol(name);
+        if (arr.line == Symbol::undef) {
+            std::ostringstream os;
+            os << "Undeclared variable " << name << ".";
+            generator.report(os, line);
+            return std::vector<Instruction*>();
+        }
+        if (!arr.is_array) {
+            std::ostringstream os;
+            os << "Attempt to use a simple variable " << name << " as an array";
+            generator.report(os, line);
+            return std::vector<Instruction*>();
+        }
+        
+        return std::vector<Instruction*>();
     }
 
 

@@ -18,12 +18,12 @@ class Symbol {
         bool not_in_scope = true;
         std::string name;
         int64_t offset_id;
-        int64_t size;
+        int64_t size, idx_a, idx_b;
         int64_t line;
         static const int64_t undef = -1;
         Symbol () : line(undef) {}
-        Symbol(std::string name, int64_t line, int64_t size, int64_t offset_id) : 
-        name(name), line(line), size(size), offset_id(offset_id), is_initialized(false) {}
+        Symbol(std::string name, int64_t line, int64_t size, int64_t offset_id, int64_t idx_a, int64_t idx_b) : 
+        name(name), line(line), size(size), offset_id(offset_id), is_initialized(false), idx_a(idx_a), idx_b(idx_b) {}
         Symbol(std::string name, int64_t line, int64_t offset_id) : 
         name(name), line(line), size(1), offset_id(offset_id), is_initialized(false) {}
 };
