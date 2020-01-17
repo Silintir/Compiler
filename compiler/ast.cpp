@@ -522,6 +522,7 @@ namespace ast {
         return output;
     }
 
+    //done
     std::vector<Instruction*> Div::gen_ir(int64_t *cur_label) {
         std::vector<Instruction*> output;
         if (!(check_init(left) && check_init(right))) {
@@ -532,40 +533,76 @@ namespace ast {
             int64_t num = left->value/right->value;
             return generate_number(num, cur_label);
         } else {
-            int64_t left_offset; 
-            int64_t right_offset; 
+            int64_t left_temp = symbols.offset; symbols.offset++;
+            int64_t right_temp = symbols.offset; symbols.offset++;
+            int64_t sign = symbols.offset; symbols.offset++;
             int64_t ta = symbols.offset; symbols.offset++;
             int64_t shift_iter_offset = symbols.offset; symbols.offset++;
             int64_t result_offset = symbols.offset; symbols.offset++;
             int64_t temp_to_compare = symbols.offset; symbols.offset++;
             int64_t temp_to_dec = symbols.offset; symbols.offset++;    
 
-            if (left->is_const()){
-                left_offset = symbols.offset; symbols.offset++;
-                generate_number(left->value, cur_label);
-                Instruction::STORE(output, left_offset, cur_label);
-            } else {
-                left_offset = symbols.get_symbol(left->identifier->name).offset_id;
-            }
+            Instruction *jump_1_if_0; 
+            Instruction *jump_2_if_0;
 
-            if (left->is_const()){
-                right_offset = symbols.offset; symbols.offset++;
-                generate_number(right->value, cur_label);
-                Instruction::STORE(output, right_offset, cur_label);
-            } else {
-                right_offset = symbols.get_symbol(right->identifier->name).offset_id;
-            }
             Instruction::SUB(output,0,cur_label);
             Instruction::STORE(output, result_offset, cur_label);
+
+            if (left->is_const()){
+                generate_number(left->value, cur_label);
+                Instruction::STORE(output, left_temp, cur_label);
+            } else {
+                int64_t left_offset = symbols.get_symbol(left->identifier->name).offset_id;
+               
+                Instruction::LOAD(output, left_offset, cur_label);
+                 jump_1_if_0 = Instruction::JZERO(Instruction::Undef, cur_label);
+                output.push_back(jump_1_if_0);
+
+                Instruction::JPOS(output, *cur_label+8, cur_label);
+                Instruction::SUB(output, 0 ,cur_label);
+                Instruction::SUB(output ,left_offset ,cur_label);
+                Instruction::STORE(output, left_temp, cur_label);
+                Instruction::SUB(output ,0 ,cur_label);
+                Instruction::DEC(output, cur_label);
+                Instruction::STORE(output, sign, cur_label);
+                Instruction::JUMP(output, *cur_label+2, cur_label);
+                Instruction::STORE(output, left_temp, cur_label);
+            }
+
+            if (right->is_const()){
+                generate_number(right->value, cur_label);
+                Instruction::STORE(output, right_temp, cur_label);
+            } else {
+                int64_t right_offset = symbols.get_symbol(right->identifier->name).offset_id;
+                
+                Instruction::LOAD(output, right_offset, cur_label);
+                jump_2_if_0 = Instruction::JZERO(Instruction::Undef, cur_label);
+                output.push_back(jump_2_if_0);
+
+                Instruction::JPOS(output, *cur_label+11, cur_label);
+                Instruction::SUB(output ,0 ,cur_label);
+                Instruction::SUB(output ,right_offset ,cur_label);
+                Instruction::STORE(output, right_temp, cur_label);
+                Instruction::LOAD(output, sign, cur_label);
+                Instruction::JNEG(output, *cur_label+3, cur_label);
+                Instruction::DEC(output, cur_label);
+                Instruction::JUMP(output, *cur_label+2, cur_label);
+                Instruction::INC(output, cur_label);
+                Instruction::STORE(output, sign, cur_label);
+                Instruction::JUMP(output, *cur_label+2, cur_label);
+                Instruction::STORE(output, right_temp, cur_label);
+            }
+
+            // Ustawianie potrzebnych zmiennych pomocniczych
+            Instruction::SUB(output,0,cur_label);
             Instruction::STORE(output, temp_to_dec, cur_label);
             Instruction::INC(output, cur_label);
             Instruction::STORE(output, shift_iter_offset, cur_label);
-            Instruction::LOAD(output, right_offset, cur_label);
+            Instruction::LOAD(output, right_temp, cur_label);
             Instruction::STORE(output, temp_to_compare, cur_label);
-            Instruction::LOAD(output, left_offset, cur_label);
+            Instruction::LOAD(output, left_temp, cur_label);
             Instruction::STORE(output, ta, cur_label);
 
-            // Potrzebna obsługa liczb ujemnych
 
             // Comparing and checking a-2^i*b > 0
             int64_t label_begin = *cur_label;
@@ -601,7 +638,7 @@ namespace ast {
             Instruction::STORE(output, result_offset, cur_label);
 
             // temp_to_dec = (2^i)*b
-            Instruction::LOAD(output, right_offset, cur_label);
+            Instruction::LOAD(output, right_temp, cur_label);
             Instruction::SHIFT(output, shift_iter_offset, cur_label);
             Instruction::STORE(output, temp_to_dec, cur_label);
 
@@ -614,19 +651,32 @@ namespace ast {
             Instruction::SUB(output, 0, cur_label);
             //Instruction::INC(output, cur_label);
             Instruction::STORE(output, shift_iter_offset, cur_label);
-            Instruction::LOAD(output, right_offset, cur_label);
+            Instruction::LOAD(output, right_temp, cur_label);
             Instruction::STORE(output, temp_to_compare, cur_label);
 
             // jump back to begin
             Instruction::JUMP(output, label_begin, cur_label);
 
             jump_to_end_if_zero->arg = *cur_label;
-            Instruction::LOAD(output, result_offset, cur_label);
+
+            Instruction::SUB(output, 0 ,cur_label);
             Instruction::INC(output, cur_label);
+            Instruction::SHIFT(output, shift_iter_offset, cur_label);
+            Instruction::ADD(output, result_offset, cur_label);
             Instruction::STORE(output, result_offset, cur_label);
+
             jump_to_end_if_neg->arg = *cur_label;
 
+            Instruction::LOAD(output, sign, cur_label);
+            Instruction::JNEG(output, *cur_label+3, cur_label);
             Instruction::LOAD(output, result_offset, cur_label);
+            Instruction::JUMP(output, *cur_label+4, cur_label);
+            Instruction::LOAD(output, result_offset, cur_label);
+            Instruction::SUB(output, 0, cur_label);
+            Instruction::SUB(output, result_offset, cur_label);
+
+            jump_1_if_0->arg = *cur_label;
+            jump_2_if_0->arg = *cur_label;
 
             return output;
         }
