@@ -21,8 +21,7 @@
                     strcpy(yylval.text, yytext);
                     return PIDENTIFIER;
                 }
-[0-9]+          { LOAD_INT; return NUM; }
-"-"             { TOKEN(NEG); }
+\-?[0-9]+          { LOAD_INT; return NUM; }
 "MINUS"         { TOKEN(MINUS); }
 "PLUS"          { TOKEN(PLUS); }
 "TIMES"         { TOKEN(TIMES); }

@@ -177,9 +177,6 @@ value:
         NUM { 
             $$ = new ast::Value($1, line); 
         }
-    |   NEG NUM {
-            $$ = new ast::Value(-$2, line);
-        }   
     |   identifier {
             $$ = new ast::Value($1, line);
         }
@@ -194,6 +191,9 @@ value:
         }
     |   PIDENTIFIER BRACKET_ON NUM BRACKET_OFF { 
             $$ = new ast::ConstArray($1, $3, line); 
+        }
+    |   PIDENTIFIER BRACKET_ON NEG NUM BRACKET_OFF { 
+            $$ = new ast::ConstArray($1, -$4, line); 
         }
     ;
 %%  

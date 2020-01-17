@@ -163,7 +163,7 @@ namespace ast {
             bool reversed;
 
             For(Identifier *iterator, Value *from, Value *to, Commands *body, bool reversed, int64_t line, int64_t id)
-            : iterator(iterator), from(from), to(to), reversed(reversed), Command(line), id(id) {}
+            : iterator(iterator), from(from), to(to),body(body), reversed(reversed), Command(line), id(id) {}
 
             std::vector<Instruction*> gen_ir(int64_t *cur_label);
     };
