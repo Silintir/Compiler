@@ -801,9 +801,9 @@ namespace ast {
             output.push_back(jump_to_end_if_neg);
 
             // usalwianie even żby odejmować dla ujemnych
-            Instruction::JUMP(output, *cur_label+3, cur_label);
+            Instruction::JUMP(output, *cur_label+2, cur_label);
             jump_to_end_if_zero->arg = *cur_label;
-            Instruction::INC(output, cur_label);
+            //Instruction::INC(output, cur_label);
             Instruction::STORE(output, even, cur_label);
 
             // result += result+2^i
