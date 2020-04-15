@@ -1,0 +1,1 @@
+My compiler project written in C++, along with some excercises from introduction to compilers (list_1, list_2).
